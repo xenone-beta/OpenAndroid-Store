@@ -42,6 +42,7 @@ object IndexParser {
             screenshots = o.optJSONArray("screenshots")?.let { list ->
                 (0 until list.length()).mapNotNull { resolve(baseUrl, list.optString(it)) }
             }.orEmpty(),
+            stars = o.optInt("stars", 0).coerceAtLeast(0),
         )
     }
 

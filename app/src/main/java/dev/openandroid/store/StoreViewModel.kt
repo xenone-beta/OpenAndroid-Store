@@ -36,6 +36,10 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     private val _offline = MutableStateFlow(false)
     val offline: StateFlow<Boolean> = _offline.asStateFlow()
 
+    /** Technical reason of the last failed refresh, shown under the generic message. */
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
     private val _installed = MutableStateFlow<Map<String, Installed>>(emptyMap())
     val installed: StateFlow<Map<String, Installed>> = _installed.asStateFlow()
 
@@ -96,8 +100,11 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _refreshing.value = true
             val result = store.repository.refresh()
-            result.onSuccess { _index.value = it; _offline.value = false }
-            result.onFailure { _offline.value = true }
+            result.onSuccess { _index.value = it; _offline.value = false; _error.value = null }
+            result.onFailure { e ->
+                _offline.value = true
+                _error.value = "${e.javaClass.simpleName}: ${e.message ?: ""}".trim()
+            }
             refreshInstalled()
             _refreshing.value = false
         }

@@ -10,7 +10,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import dev.openandroid.store.core.Catalog
+import dev.openandroid.store.core.StoreApp
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -58,27 +66,37 @@ fun CatalogScreen(vm: StoreViewModel, modifier: Modifier, onOpenApp: (String) ->
 
     if (permissionDialog) InstallPermissionDialog { permissionDialog = false }
 
+    val browsing = query.isBlank() && category == null && !onlyFavorites
+    val all = index?.apps.orEmpty()
+
     Column(modifier.fillMaxSize().statusBarsPadding()) {
-        TextField(
-            value = query,
-            onValueChange = vm::setQuery,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            singleLine = true,
-            placeholder = { Text(stringResource(R.string.search_hint)) },
-            leadingIcon = { Icon(Icons.Rounded.Search, null) },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = { vm.setQuery("") }) { Icon(Icons.Rounded.Close, stringResource(R.string.clear)) }
-                }
-            },
-            shape = CircleShape,
-            colors = TextFieldDefaults.colors(
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ),
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StoreLogo(48.dp)
+            Spacer(Modifier.width(10.dp))
+            TextField(
+                value = query,
+                onValueChange = vm::setQuery,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.search_hint), maxLines = 1) },
+                leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { vm.setQuery("") }) { Icon(Icons.Rounded.Close, stringResource(R.string.clear)) }
+                    }
+                },
+                shape = CircleShape,
+                colors = TextFieldDefaults.colors(
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ),
+            )
+        }
         if (categories.size > 1 || favorites.isNotEmpty()) {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
@@ -102,6 +120,7 @@ fun CatalogScreen(vm: StoreViewModel, modifier: Modifier, onOpenApp: (String) ->
                 }
             }
         }
+
         if (offline && index != null) {
             Text(
                 stringResource(R.string.offline_cached),
@@ -116,15 +135,54 @@ fun CatalogScreen(vm: StoreViewModel, modifier: Modifier, onOpenApp: (String) ->
                 index == null && refreshing -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 index == null -> Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(stringResource(R.string.error_index), style = MaterialTheme.typography.bodyLarge)
+                    val detail by vm.error.collectAsState()
+                    detail?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
+                    }
                     TextButton(onClick = vm::refresh) { Text(stringResource(R.string.retry)) }
                 }
                 apps.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    EmptyMessage(stringResource(if (query.isBlank() && category == null && !onlyFavorites) R.string.empty_catalog else R.string.empty_search))
+                    EmptyMessage(stringResource(if (browsing) R.string.empty_catalog else R.string.empty_search))
                 }
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)) {
-                    items(apps, key = { it.packageName }) { app ->
-                        AppRow(app, vm, onOpen = { onOpenApp(app.packageName) }, onNeedPermission = { permissionDialog = true })
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    if (browsing && all.size >= 2) {
+                        val popular = Catalog.popular(all)
+                        if (popular.isNotEmpty()) feed(R.string.feed_popular, popular, { stringResource(R.string.stars_count, it.stars) }, onOpenApp)
+                        feed(R.string.feed_new, Catalog.newest(all), { it.latestFor(Int.MAX_VALUE)?.versionName.orEmpty() }, onOpenApp)
+                        feed(R.string.feed_updated, Catalog.recentlyUpdated(all), { it.latestFor(Int.MAX_VALUE)?.versionName.orEmpty() }, onOpenApp)
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "title:all") {
+                            SectionTitle(stringResource(R.string.all_apps), horizontal = 0.dp)
+                        }
                     }
+                    gridItems(apps, key = { it.packageName }) { app ->
+                        AppCard(app, vm, onOpen = { onOpenApp(app.packageName) }, onNeedPermission = { permissionDialog = true })
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A titled horizontal row of small tiles that spans the full grid width. */
+private fun androidx.compose.foundation.lazy.grid.LazyGridScope.feed(
+    title: Int,
+    apps: List<StoreApp>,
+    subtitle: @Composable (StoreApp) -> String,
+    onOpenApp: (String) -> Unit,
+) {
+    if (apps.isEmpty()) return
+    item(span = { GridItemSpan(maxLineSpan) }, key = "feed:$title") {
+        Column {
+            SectionTitle(stringResource(title), horizontal = 0.dp)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(apps, key = { it.packageName }) { app ->
+                    FeedCard(app, subtitle(app), onOpen = { onOpenApp(app.packageName) })
                 }
             }
         }

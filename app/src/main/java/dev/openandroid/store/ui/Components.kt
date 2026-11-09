@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package dev.openandroid.store.ui
 
 import androidx.compose.foundation.background
@@ -6,6 +8,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -113,7 +125,95 @@ fun AppRow(app: StoreApp, vm: StoreViewModel, onOpen: () -> Unit, onNeedPermissi
                 null -> Unit
             }
         }
-        ActionButton(app, state, transfer, vm, compact = true, onNeedPermission = onNeedPermission)
+        if (transfer is Transfer.Downloading || transfer == Transfer.Verifying) {
+            CancelButton { vm.installs.cancel(app.packageName) }
+        } else {
+            ActionButton(app, state, transfer, vm, compact = true, onNeedPermission = onNeedPermission)
+        }
+    }
+}
+
+@Composable
+fun CancelButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) { Icon(Icons.Rounded.Close, stringResource(R.string.action_cancel)) }
+}
+
+/** The store's own mark, drawn from the launcher icon so it always matches. */
+@Composable
+fun StoreLogo(size: Dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(androidx.compose.ui.graphics.Color(0xFF3F55B5)),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(size * 1.5f))
+    }
+}
+
+/** Grid card: big icon, name, short summary, and the install button or progress at the bottom. */
+@Composable
+fun AppCard(app: StoreApp, vm: StoreViewModel, onOpen: () -> Unit, onNeedPermission: () -> Unit, modifier: Modifier = Modifier) {
+    val installed by vm.installed.collectAsState()
+    val transfers by vm.installs.transfers.collectAsState()
+    val state = vm.stateOf(app, installed)
+    val transfer = transfers[app.packageName]
+
+    Surface(
+        onClick = onOpen,
+        modifier = modifier.fillMaxWidth().height(208.dp),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Column(Modifier.padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            AppIcon(app, 60.dp)
+            Spacer(Modifier.height(8.dp))
+            Text(app.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            Text(
+                app.summary.ifEmpty { app.author },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.weight(1f))
+            when (transfer) {
+                is Transfer.Downloading, Transfer.Verifying, Transfer.Installing -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        val fraction = (transfer as? Transfer.Downloading)?.fraction ?: -1f
+                        if (fraction < 0f) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                    }
+                    if (transfer != Transfer.Installing) CancelButton { vm.installs.cancel(app.packageName) }
+                }
+                is Transfer.Failed -> Text(
+                    failMessage(transfer),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+                null -> ActionButton(app, state, null, vm, compact = true, onNeedPermission = onNeedPermission)
+            }
+        }
+    }
+}
+
+/** Small tile for the horizontal feeds. [subtitle] is a star count or a version. */
+@Composable
+fun FeedCard(app: StoreApp, subtitle: String, onOpen: () -> Unit) {
+    Surface(
+        onClick = onOpen,
+        modifier = Modifier.width(116.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            AppIcon(app, 64.dp)
+            Spacer(Modifier.height(8.dp))
+            Text(app.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        }
     }
 }
 
@@ -160,12 +260,12 @@ fun ActionButton(
 }
 
 @Composable
-fun SectionTitle(text: String, modifier: Modifier = Modifier) {
+fun SectionTitle(text: String, modifier: Modifier = Modifier, horizontal: Dp = 16.dp) {
     Text(
         text,
         style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        modifier = modifier.padding(horizontal = horizontal, vertical = 8.dp),
     )
 }
 

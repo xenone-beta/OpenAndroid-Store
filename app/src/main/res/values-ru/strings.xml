@@ -108,4 +108,11 @@
         <item quantity="many">Есть обновления для %d приложений</item>
         <item quantity="other">Есть обновления для %d приложений</item>
     </plurals>
+    <string name="feed_popular">Популярные</string>
+    <string name="feed_new">Новые</string>
+    <string name="feed_updated">Недавно обновлены</string>
+    <string name="all_apps">Все приложения</string>
+    <string name="downloads_title">Загрузки</string>
+    <string name="action_cancel">Отменить загрузку</string>
+    <string name="stars_count">★ %1$d</string>
 </resources>

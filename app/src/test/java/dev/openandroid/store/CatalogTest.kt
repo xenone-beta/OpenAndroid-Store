@@ -81,4 +81,32 @@ class CatalogTest {
         assertEquals("2 KB", Catalog.formatSize(2048))
         assertEquals("1.5 MB", Catalog.formatSize(1_572_864))
     }
+
+    private fun dated(name: String, stars: Int, first: String, last: String) = StoreApp(
+        "dev.$name", name, "", "", "Music", "", "MIT", "me", null,
+        listOf(
+            AppVersion("2", 2, 26, "https://e.com/2.apk", 1, "ff", "aa", emptyList(), "", last),
+            AppVersion("1", 1, 26, "https://e.com/1.apk", 1, "ff", "aa", emptyList(), "", first),
+        ),
+        stars = stars,
+    )
+
+    @Test
+    fun feeds() {
+        val a = dated("a", 5, "2026-01-01T00:00:00Z", "2026-03-01T00:00:00Z")
+        val b = dated("b", 0, "2026-02-01T00:00:00Z", "2026-02-10T00:00:00Z")
+        val c = dated("c", 9, "2026-03-01T00:00:00Z", "2026-03-05T00:00:00Z")
+        val all = listOf(a, b, c)
+        assertEquals(listOf("c", "a"), Catalog.popular(all).map { it.name })
+        assertEquals(listOf("c", "b", "a"), Catalog.newest(all).map { it.name })
+        assertEquals(listOf("c", "a", "b"), Catalog.recentlyUpdated(all).map { it.name })
+    }
+
+    @Test
+    fun starsAreParsed() {
+        val json = """{"format":1,"apps":[{"package":"a.b","name":"A","stars":42,"versions":[]},{"package":"c.d","name":"C","stars":-3,"versions":[]}]}"""
+        val apps = IndexParser.parse(json).apps
+        assertEquals(42, apps[0].stars)
+        assertEquals(0, apps[1].stars)
+    }
 }

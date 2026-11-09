@@ -25,11 +25,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.openandroid.store.R
 import dev.openandroid.store.StoreViewModel
+import dev.openandroid.store.install.Transfer
 
 @Composable
 fun UpdatesScreen(vm: StoreViewModel, modifier: Modifier, onOpenApp: (String) -> Unit) {
     val updates by vm.updates.collectAsState()
     val upToDate by vm.upToDate.collectAsState()
+    val index by vm.index.collectAsState()
+    val transfers by vm.installs.transfers.collectAsState()
+    val active = index?.apps.orEmpty().filter {
+        val t = transfers[it.packageName]
+        t is Transfer.Downloading || t == Transfer.Verifying || t == Transfer.Installing
+    }
     var permissionDialog by remember { mutableStateOf(false) }
     if (permissionDialog) InstallPermissionDialog { permissionDialog = false }
 
@@ -46,6 +53,12 @@ fun UpdatesScreen(vm: StoreViewModel, modifier: Modifier, onOpenApp: (String) ->
                         Text(stringResource(R.string.action_update_all))
                     }
                 }
+            }
+        }
+        if (active.isNotEmpty()) {
+            item { SectionTitle(stringResource(R.string.downloads_title)) }
+            items(active, key = { "d:" + it.packageName }) { app ->
+                AppRow(app, vm, onOpen = { onOpenApp(app.packageName) }, onNeedPermission = { permissionDialog = true })
             }
         }
         if (updates.isEmpty()) {

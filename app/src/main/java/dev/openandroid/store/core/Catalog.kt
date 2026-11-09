@@ -29,6 +29,18 @@ object Catalog {
             .sortedBy { normalize(it.name) }
     }
 
+    /** Most starred first; apps without stars are left out. */
+    fun popular(apps: List<StoreApp>, limit: Int = 10): List<StoreApp> =
+        apps.filter { it.stars > 0 }.sortedWith(compareByDescending<StoreApp> { it.stars }.thenBy { normalize(it.name) }).take(limit)
+
+    /** Apps whose first release is the most recent. */
+    fun newest(apps: List<StoreApp>, limit: Int = 10): List<StoreApp> =
+        apps.filter { it.firstPublished.isNotEmpty() }.sortedByDescending { it.firstPublished }.take(limit)
+
+    /** Apps with the most recent release. */
+    fun recentlyUpdated(apps: List<StoreApp>, limit: Int = 10): List<StoreApp> =
+        apps.filter { it.lastPublished.isNotEmpty() }.sortedByDescending { it.lastPublished }.take(limit)
+
     fun categories(apps: List<StoreApp>): List<String> =
         apps.map { it.category }.distinct().sortedBy { it.lowercase(Locale.ROOT) }
 

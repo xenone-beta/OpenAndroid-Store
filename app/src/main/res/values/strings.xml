@@ -104,4 +104,11 @@
         <item quantity="one">%d app update available</item>
         <item quantity="other">%d app updates available</item>
     </plurals>
+    <string name="feed_popular">Popular</string>
+    <string name="feed_new">New</string>
+    <string name="feed_updated">Recently updated</string>
+    <string name="all_apps">All apps</string>
+    <string name="downloads_title">Downloads</string>
+    <string name="action_cancel">Cancel download</string>
+    <string name="stars_count">★ %1$d</string>
 </resources>

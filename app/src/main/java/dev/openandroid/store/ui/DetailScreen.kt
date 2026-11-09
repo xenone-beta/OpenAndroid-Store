@@ -136,8 +136,14 @@ fun DetailScreen(packageName: String, vm: StoreViewModel, onBack: () -> Unit) {
                 if (state != InstallState.NOT_INSTALLED && state != InstallState.INCOMPATIBLE) UninstallButton(app)
             }
             when (transfer) {
-                is Transfer.Downloading -> Progress(stringResource(R.string.status_downloading), transfer.fraction)
-                Transfer.Verifying -> Progress(stringResource(R.string.status_verifying), -1f)
+                is Transfer.Downloading -> {
+                    Progress(stringResource(R.string.status_downloading), transfer.fraction)
+                    androidx.compose.material3.TextButton(onClick = { vm.installs.cancel(app.packageName) }) { Text(stringResource(R.string.cancel)) }
+                }
+                Transfer.Verifying -> {
+                    Progress(stringResource(R.string.status_verifying), -1f)
+                    androidx.compose.material3.TextButton(onClick = { vm.installs.cancel(app.packageName) }) { Text(stringResource(R.string.cancel)) }
+                }
                 Transfer.Installing -> Progress(stringResource(R.string.status_installing), -1f)
                 is Transfer.Failed -> Text(
                     failMessage(transfer) + if (transfer.detail.isNotBlank()) " (${transfer.detail})" else "",

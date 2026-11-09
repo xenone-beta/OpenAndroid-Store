@@ -11,7 +11,11 @@ import dev.openandroid.store.core.StoreApp
 import dev.openandroid.store.data.InstalledApps
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,6 +47,8 @@ class InstallManager(private val context: Context, private val installed: Instal
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val dir get() = File(context.cacheDir, "apks").apply { mkdirs() }
 
+    private val jobs = HashMap<String, Job>()
+
     private val _transfers = MutableStateFlow<Map<String, Transfer>>(emptyMap())
     val transfers: StateFlow<Map<String, Transfer>> = _transfers.asStateFlow()
 
@@ -60,7 +66,7 @@ class InstallManager(private val context: Context, private val installed: Instal
             return
         }
         set(pkg, Transfer.Downloading(0f))
-        scope.launch {
+        val job = scope.launch {
             val file = File(dir, "$pkg-${version.versionCode}.apk")
             try {
                 download(pkg, version, file)
@@ -68,6 +74,10 @@ class InstallManager(private val context: Context, private val installed: Instal
                 verify(app, version, file)?.let { set(pkg, it); file.delete(); return@launch }
                 set(pkg, Transfer.Installing)
                 commit(pkg, file)
+            } catch (e: CancellationException) {
+                file.delete()
+                _transfers.update { it - pkg }
+                throw e
             } catch (e: HashMismatch) {
                 file.delete()
                 set(pkg, Transfer.Failed(FailReason.HASH))
@@ -76,6 +86,15 @@ class InstallManager(private val context: Context, private val installed: Instal
                 set(pkg, Transfer.Failed(FailReason.DOWNLOAD, e.message.orEmpty()))
             }
         }
+        synchronized(jobs) { jobs[pkg] = job }
+        job.invokeOnCompletion { synchronized(jobs) { if (jobs[pkg] === job) jobs.remove(pkg) } }
+    }
+
+    /** Stops a download or verification in progress. Once the system installer has the file it cannot be stopped. */
+    fun cancel(pkg: String) {
+        if (_transfers.value[pkg] is Transfer.Installing) return
+        synchronized(jobs) { jobs[pkg] }?.cancel()
+        _transfers.update { it - pkg }
     }
 
     fun dismiss(packageName: String) = _transfers.update { it - packageName }
@@ -99,6 +118,7 @@ class InstallManager(private val context: Context, private val installed: Instal
                 part.outputStream().use { output ->
                     val buffer = ByteArray(64 * 1024)
                     while (true) {
+                        currentCoroutineContext().ensureActive()
                         val read = input.read(buffer)
                         if (read < 0) break
                         output.write(buffer, 0, read)

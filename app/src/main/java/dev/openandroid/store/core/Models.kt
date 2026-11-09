@@ -33,7 +33,15 @@ data class StoreApp(
     /** Where to report problems; null when the app gives no link. */
     val issues: String? = null,
     val screenshots: List<String> = emptyList(),
+    /** GitHub stars of the repository, 0 when unknown. */
+    val stars: Int = 0,
 ) {
+    /** Date of the oldest listed release: when the app appeared in the catalog, as far as the catalog knows. */
+    val firstPublished: String get() = versions.minOfOrNull { it.publishedAt }.orEmpty()
+
+    /** Date of the newest release. */
+    val lastPublished: String get() = versions.maxOfOrNull { it.publishedAt }.orEmpty()
+
     /** The newest version that runs on [sdk], or null when none does. */
     fun latestFor(sdk: Int): AppVersion? = versions.filter { it.minSdk <= sdk }.maxByOrNull { it.versionCode }
 }
