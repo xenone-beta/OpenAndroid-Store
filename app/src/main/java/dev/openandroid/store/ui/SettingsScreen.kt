@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ListItem
@@ -53,6 +58,8 @@ fun SettingsScreen(vm: StoreViewModel, modifier: Modifier, onOpenAbout: () -> Un
     val hours by settings.checkHours.collectAsState()
     val indexUrl by settings.indexUrl.collectAsState()
     var urlDialog by remember { mutableStateOf(false) }
+    val sources by settings.sources.collectAsState()
+    var sourceDialog by remember { mutableStateOf(false) }
 
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -84,6 +91,34 @@ fun SettingsScreen(vm: StoreViewModel, modifier: Modifier, onOpenAbout: () -> Un
                     TextButton(onClick = { urlDialog = false }) { Text(stringResource(R.string.cancel)) }
                 }
             },
+        )
+    }
+
+    if (sourceDialog) {
+        var text by remember { mutableStateOf("https://") }
+        val valid = StoreSettings.isValidIndexUrl(text.trim()) && text.trim() != indexUrl && sources.none { it.url == text.trim() }
+        AlertDialog(
+            onDismissRequest = { sourceDialog = false },
+            title = { Text(stringResource(R.string.source_add)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.source_add_warning), style = MaterialTheme.typography.bodyMedium)
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        singleLine = true,
+                        isError = !valid,
+                        supportingText = { Text(stringResource(R.string.settings_index_hint)) },
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = valid, onClick = { settings.addSource(text); sourceDialog = false; vm.refresh() }) {
+                    Text(stringResource(R.string.add))
+                }
+            },
+            dismissButton = { TextButton(onClick = { sourceDialog = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 
@@ -139,6 +174,34 @@ fun SettingsScreen(vm: StoreViewModel, modifier: Modifier, onOpenAbout: () -> Un
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             headlineContent = { Text(stringResource(R.string.settings_index)) },
             supportingContent = { Text(indexUrl, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        )
+
+        SectionTitle(stringResource(R.string.settings_sources))
+        Text(
+            stringResource(R.string.sources_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        sources.forEach { source ->
+            ListItem(
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                headlineContent = { Text(source.url, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium) },
+                leadingContent = {
+                    Switch(checked = source.enabled, onCheckedChange = { settings.setSourceEnabled(source.url, it); vm.refresh() })
+                },
+                trailingContent = {
+                    IconButton(onClick = { settings.removeSource(source.url); vm.refresh() }) {
+                        Icon(Icons.Rounded.Delete, stringResource(R.string.source_remove))
+                    }
+                },
+            )
+        }
+        ListItem(
+            modifier = Modifier.clickable { sourceDialog = true },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            leadingContent = { Icon(Icons.Rounded.Add, null) },
+            headlineContent = { Text(stringResource(R.string.source_add)) },
         )
 
         SectionTitle(stringResource(R.string.settings_about))

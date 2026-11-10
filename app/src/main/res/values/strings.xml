@@ -111,4 +111,19 @@
     <string name="downloads_title">Downloads</string>
     <string name="action_cancel">Cancel download</string>
     <string name="stars_count">★ %1$d</string>
+    <string name="action_share">Share</string>
+    <string name="share_text">%1$s in OpenAndroid Store:\n%2$s</string>
+    <string name="version_install">Install</string>
+    <string name="version_rollback">Roll back</string>
+    <string name="version_current">Installed</string>
+    <string name="downgrade_title">Install an older version?</string>
+    <string name="downgrade_body">Android does not allow downgrading. %1$s will be uninstalled first and its data will be deleted. Then version %2$s will be installed.</string>
+    <string name="downgrade_confirm">Uninstall and install</string>
+    <string name="settings_sources">Extra sources</string>
+    <string name="sources_hint">Catalogs from other developers. This store does not review the apps in them.</string>
+    <string name="source_add">Add a source</string>
+    <string name="source_add_warning">Only add catalogs you trust. The store still checks every file\'s checksum and signature, but it cannot judge what an app does.</string>
+    <string name="source_remove">Remove source</string>
+    <string name="source_from">Source: %1$s</string>
+    <string name="add">Add</string>
 </resources>

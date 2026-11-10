@@ -1,6 +1,8 @@
 package dev.openandroid.store.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -42,8 +44,11 @@ import dev.openandroid.store.R
 import dev.openandroid.store.StoreViewModel
 
 @Composable
-fun StoreRoot(vm: StoreViewModel, requestedTab: Int) {
+fun StoreRoot(vm: StoreViewModel, requestedTab: Int, requestedApp: String? = null, onRequestedAppHandled: () -> Unit = {}) {
     val nav = rememberNavController()
+    LaunchedEffect(requestedApp) {
+        requestedApp?.let { nav.navigate("app/$it"); onRequestedAppHandled() }
+    }
     val back: () -> Unit = { nav.popBackStack() }
     val prompt by vm.permissionPrompt.collectAsState()
     prompt?.let { p ->
@@ -120,10 +125,16 @@ private fun HomeScreen(vm: StoreViewModel, requestedTab: Int, onOpenApp: (String
         },
     ) { padding ->
         val content = Modifier.padding(padding)
-        when (tab) {
-            MainActivity.TAB_CATALOG -> CatalogScreen(vm, content, onOpenApp)
-            MainActivity.TAB_UPDATES -> UpdatesScreen(vm, content, onOpenApp)
-            else -> SettingsScreen(vm, content, onOpenAbout)
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = { fadeIn(tween(220, delayMillis = 60)) togetherWith fadeOut(tween(120)) },
+            label = "tab",
+        ) { current ->
+            when (current) {
+                MainActivity.TAB_CATALOG -> CatalogScreen(vm, content, onOpenApp)
+                MainActivity.TAB_UPDATES -> UpdatesScreen(vm, content, onOpenApp)
+                else -> SettingsScreen(vm, content, onOpenAbout)
+            }
         }
     }
 }

@@ -16,6 +16,9 @@ object ThemeMode {
 /** Hours between background checks for updates; 0 turns them off. */
 val CHECK_INTERVALS = listOf(0, 6, 12, 24)
 
+/** An extra catalog the user added. */
+data class Source(val url: String, val enabled: Boolean)
+
 class StoreSettings(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("store_settings", Context.MODE_PRIVATE)
 
@@ -33,6 +36,35 @@ class StoreSettings(context: Context) {
 
     private val _favorites = MutableStateFlow(prefs.getStringSet(KEY_FAVORITES, emptySet()).orEmpty().toSet())
     val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
+
+    private val _sources = MutableStateFlow(readSources())
+    /** Extra catalogs added by the user, in the order they were added. */
+    val sources: StateFlow<List<Source>> = _sources.asStateFlow()
+
+    private fun readSources(): List<Source> =
+        prefs.getString(KEY_SOURCES, "").orEmpty().lines().mapNotNull { line ->
+            val enabled = line.startsWith("1 ")
+            val url = line.drop(2).trim()
+            if ((enabled || line.startsWith("0 ")) && isValidIndexUrl(url)) Source(url, enabled) else null
+        }
+
+    private fun saveSources(list: List<Source>) {
+        prefs.edit().putString(KEY_SOURCES, list.joinToString("\n") { (if (it.enabled) "1 " else "0 ") + it.url }).apply()
+        _sources.value = list
+    }
+
+    /** Returns false when [url] is not a usable https address or is already known. */
+    fun addSource(url: String): Boolean {
+        val clean = url.trim()
+        if (!isValidIndexUrl(clean) || clean == _indexUrl.value || _sources.value.any { it.url == clean }) return false
+        saveSources(_sources.value + Source(clean, true))
+        return true
+    }
+
+    fun removeSource(url: String) = saveSources(_sources.value.filter { it.url != url })
+
+    fun setSourceEnabled(url: String, enabled: Boolean) =
+        saveSources(_sources.value.map { if (it.url == url) it.copy(enabled = enabled) else it })
 
     fun toggleFavorite(packageName: String) {
         val next = if (packageName in _favorites.value) _favorites.value - packageName else _favorites.value + packageName
@@ -72,6 +104,7 @@ class StoreSettings(context: Context) {
         private const val KEY_INTERVAL = "interval"
         private const val KEY_INDEX = "index_url"
         private const val KEY_NOTIFIED = "notified"
+        private const val KEY_SOURCES = "sources"
         private const val KEY_FAVORITES = "favorites"
     }
 }

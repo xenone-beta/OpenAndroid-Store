@@ -35,6 +35,8 @@ data class StoreApp(
     val screenshots: List<String> = emptyList(),
     /** GitHub stars of the repository, 0 when unknown. */
     val stars: Int = 0,
+    /** Host of the extra source this app came from; null for the main catalog. */
+    val source: String? = null,
 ) {
     /** Date of the oldest listed release: when the app appeared in the catalog, as far as the catalog knows. */
     val firstPublished: String get() = versions.minOfOrNull { it.publishedAt }.orEmpty()

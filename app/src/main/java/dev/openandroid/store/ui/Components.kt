@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -48,6 +52,52 @@ import dev.openandroid.store.core.InstallState
 import dev.openandroid.store.core.StoreApp
 import dev.openandroid.store.install.FailReason
 import dev.openandroid.store.install.Transfer
+
+/** Packages whose entrance animation already played, so scrolling back does not replay it. */
+private val appeared = HashSet<String>()
+
+/** Fades and lifts an item in; [index] staggers the start, [key] makes it play only once. */
+@Composable
+fun Modifier.appear(key: String, index: Int): Modifier {
+    val play = remember { appeared.add(key) }
+    val progress = remember { androidx.compose.animation.core.Animatable(if (play) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (play) {
+            kotlinx.coroutines.delay(index.coerceAtMost(8) * 40L)
+            progress.animateTo(1f, androidx.compose.animation.core.tween(360, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
+    }
+    return graphicsLayer {
+        alpha = progress.value
+        translationY = (1f - progress.value) * 28.dp.toPx()
+    }
+}
+
+/** Grey placeholder tiles with a soft pulse, shown while the catalog loads. */
+@Composable
+fun SkeletonGrid(modifier: Modifier = Modifier) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "skeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.8f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(800), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "alpha",
+    )
+    Column(modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(3) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                repeat(2) {
+                    Box(
+                        Modifier.weight(1f).height(208.dp)
+                            .graphicsLayer { this.alpha = alpha }
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    )
+                }
+            }
+        }
+    }
+}
 
 /** App icon from the catalog, or a tinted letter tile while it loads or when there is none. */
 @Composable
@@ -142,10 +192,10 @@ fun CancelButton(onClick: () -> Unit) {
 @Composable
 fun StoreLogo(size: Dp, modifier: Modifier = Modifier) {
     Box(
-        modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(androidx.compose.ui.graphics.Color(0xFF3F55B5)),
+        modifier.size(size).clip(RoundedCornerShape(size * 0.3f)).background(androidx.compose.ui.graphics.Color(0xFFB0EAA7)),
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.foundation.Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(size * 1.5f))
+        androidx.compose.foundation.Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.size(size * 1.35f))
     }
 }
 
@@ -180,8 +230,9 @@ fun AppCard(app: StoreApp, vm: StoreViewModel, onOpen: () -> Unit, onNeedPermiss
                 is Transfer.Downloading, Transfer.Verifying, Transfer.Installing -> Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) {
                         val fraction = (transfer as? Transfer.Downloading)?.fraction ?: -1f
+                        val shown by androidx.compose.animation.core.animateFloatAsState(fraction.coerceAtLeast(0f), label = "progress")
                         if (fraction < 0f) LinearProgressIndicator(Modifier.fillMaxWidth())
-                        else LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                        else LinearProgressIndicator(progress = { shown }, modifier = Modifier.fillMaxWidth())
                     }
                     if (transfer != Transfer.Installing) CancelButton { vm.installs.cancel(app.packageName) }
                 }
@@ -201,10 +252,10 @@ fun AppCard(app: StoreApp, vm: StoreViewModel, onOpen: () -> Unit, onNeedPermiss
 
 /** Small tile for the horizontal feeds. [subtitle] is a star count or a version. */
 @Composable
-fun FeedCard(app: StoreApp, subtitle: String, onOpen: () -> Unit) {
+fun FeedCard(app: StoreApp, subtitle: String, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         onClick = onOpen,
-        modifier = Modifier.width(116.dp),
+        modifier = modifier.width(116.dp),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
@@ -221,7 +272,10 @@ fun FeedCard(app: StoreApp, subtitle: String, onOpen: () -> Unit) {
 private fun ProgressLine(fraction: Float) {
     val modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
     if (fraction < 0f) LinearProgressIndicator(modifier = modifier)
-    else LinearProgressIndicator(progress = { fraction }, modifier = modifier)
+    else {
+        val shown by androidx.compose.animation.core.animateFloatAsState(fraction, label = "progress")
+        LinearProgressIndicator(progress = { shown }, modifier = modifier)
+    }
 }
 
 /** Install, Update, Open or nothing, depending on the app's state. Shared by rows and the detail screen. */

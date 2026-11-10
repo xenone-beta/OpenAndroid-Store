@@ -4,6 +4,7 @@ import android.app.Application
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import dev.openandroid.store.core.AppVersion
 import dev.openandroid.store.core.Catalog
 import dev.openandroid.store.core.InstallState
 import dev.openandroid.store.core.Installed
@@ -57,6 +58,12 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     data class PermissionPrompt(val app: StoreApp, val added: List<String>)
     private val _prompt = MutableStateFlow<PermissionPrompt?>(null)
     val permissionPrompt: StateFlow<PermissionPrompt?> = _prompt.asStateFlow()
+
+    /** The user asked for an older version than the installed one; Android needs an uninstall first. */
+    data class DowngradePrompt(val app: StoreApp, val version: AppVersion)
+    private val _downgrade = MutableStateFlow<DowngradePrompt?>(null)
+    val downgradePrompt: StateFlow<DowngradePrompt?> = _downgrade.asStateFlow()
+    private var pendingDowngrade: Pair<DowngradePrompt, Long>? = null
 
     fun setQuery(text: String) { _query.value = text }
     fun setCategory(value: String?) { _category.value = value }
@@ -117,6 +124,17 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
                 buildMap { apps.forEach { a -> store.installedApps.get(a.packageName)?.let { put(a.packageName, it) } } }
             }
             _installed.value = map
+            // A rollback waits for the uninstall to finish, then installs the chosen version.
+            pendingDowngrade?.let { (prompt, since) ->
+                when {
+                    System.currentTimeMillis() - since > 120_000 -> pendingDowngrade = null
+                    prompt.app.packageName !in map -> {
+                        pendingDowngrade = null
+                        installs.start(prompt.app, prompt.version)
+                    }
+                    else -> Unit
+                }
+            }
         }
     }
 
@@ -145,6 +163,25 @@ class StoreViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun dismissPrompt() { _prompt.value = null }
+
+    /** Installs one specific version. Older than the installed one means uninstall first, which the user confirms. */
+    fun installVersion(app: StoreApp, version: AppVersion) {
+        val current = _installed.value[app.packageName]
+        when {
+            current == null || version.versionCode > current.versionCode -> installs.start(app, version)
+            version.versionCode < current.versionCode -> _downgrade.value = DowngradePrompt(app, version)
+        }
+    }
+
+    fun dismissDowngrade() { _downgrade.value = null }
+
+    /** The caller opens the system uninstall screen for the returned package. */
+    fun confirmDowngrade(): String? {
+        val prompt = _downgrade.value ?: return null
+        _downgrade.value = null
+        pendingDowngrade = prompt to System.currentTimeMillis()
+        return prompt.app.packageName
+    }
 
     fun toggleFavorite(packageName: String) = settings.toggleFavorite(packageName)
 

@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -21,6 +21,7 @@ import dev.openandroid.store.core.Catalog
 import dev.openandroid.store.core.StoreApp
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -132,7 +133,7 @@ fun CatalogScreen(vm: StoreViewModel, modifier: Modifier, onOpenApp: (String) ->
 
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize()) {
             when {
-                index == null && refreshing -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                index == null && refreshing -> SkeletonGrid()
                 index == null -> Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(stringResource(R.string.error_index), style = MaterialTheme.typography.bodyLarge)
                     val detail by vm.error.collectAsState()
@@ -160,8 +161,13 @@ fun CatalogScreen(vm: StoreViewModel, modifier: Modifier, onOpenApp: (String) ->
                             SectionTitle(stringResource(R.string.all_apps), horizontal = 0.dp)
                         }
                     }
-                    gridItems(apps, key = { it.packageName }) { app ->
-                        AppCard(app, vm, onOpen = { onOpenApp(app.packageName) }, onNeedPermission = { permissionDialog = true })
+                    gridItemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
+                        AppCard(
+                            app, vm,
+                            onOpen = { onOpenApp(app.packageName) },
+                            onNeedPermission = { permissionDialog = true },
+                            modifier = Modifier.animateItem().appear("grid:" + app.packageName, i),
+                        )
                     }
                 }
             }
@@ -181,8 +187,8 @@ private fun androidx.compose.foundation.lazy.grid.LazyGridScope.feed(
         Column {
             SectionTitle(stringResource(title), horizontal = 0.dp)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(apps, key = { it.packageName }) { app ->
-                    FeedCard(app, subtitle(app), onOpen = { onOpenApp(app.packageName) })
+                itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
+                    FeedCard(app, subtitle(app), onOpen = { onOpenApp(app.packageName) }, modifier = Modifier.appear("feed:$title:" + app.packageName, i))
                 }
             }
         }

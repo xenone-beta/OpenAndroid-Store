@@ -115,4 +115,19 @@
     <string name="downloads_title">Загрузки</string>
     <string name="action_cancel">Отменить загрузку</string>
     <string name="stars_count">★ %1$d</string>
+    <string name="action_share">Поделиться</string>
+    <string name="share_text">%1$s в OpenAndroid Store:\n%2$s</string>
+    <string name="version_install">Установить</string>
+    <string name="version_rollback">Откатить</string>
+    <string name="version_current">Установлена</string>
+    <string name="downgrade_title">Установить старую версию?</string>
+    <string name="downgrade_body">Android не позволяет понижать версию. Сначала %1$s будет удалено вместе с данными, затем установится версия %2$s.</string>
+    <string name="downgrade_confirm">Удалить и установить</string>
+    <string name="settings_sources">Дополнительные источники</string>
+    <string name="sources_hint">Каталоги других авторов. Приложения из них магазин не проверяет.</string>
+    <string name="source_add">Добавить источник</string>
+    <string name="source_add_warning">Добавляй только каталоги, которым доверяешь. Магазин проверяет контрольную сумму и подпись файлов, но не может оценить, что делает приложение.</string>
+    <string name="source_remove">Удалить источник</string>
+    <string name="source_from">Источник: %1$s</string>
+    <string name="add">Добавить</string>
 </resources>

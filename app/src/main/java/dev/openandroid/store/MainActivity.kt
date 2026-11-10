@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.collectAsState
 import dev.openandroid.store.ui.StoreRoot
 import dev.openandroid.store.ui.StoreTheme
@@ -15,6 +16,7 @@ import dev.openandroid.store.ui.StoreTheme
 class MainActivity : ComponentActivity() {
     private val vm: StoreViewModel by viewModels()
     private val requestedTab = mutableIntStateOf(TAB_CATALOG)
+    private val requestedApp = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,7 +26,7 @@ class MainActivity : ComponentActivity() {
             val mode by vm.settings.themeMode.collectAsState()
             val dynamic by vm.settings.dynamicColor.collectAsState()
             StoreTheme(mode, dynamic) {
-                StoreRoot(vm, requestedTab.intValue)
+                StoreRoot(vm, requestedTab.intValue, requestedApp.value, onRequestedAppHandled = { requestedApp.value = null })
             }
         }
     }
@@ -41,6 +43,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handle(intent: Intent?) {
+        intent?.data?.takeIf { it.scheme == "openandroid" && it.host == "app" }
+            ?.pathSegments?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { requestedApp.value = it }
         intent?.getIntExtra(EXTRA_TAB, -1)?.takeIf { it >= 0 }?.let { requestedTab.intValue = it }
     }
 

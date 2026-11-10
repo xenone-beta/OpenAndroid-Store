@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.Verified
@@ -78,6 +79,23 @@ fun DetailScreen(packageName: String, vm: StoreViewModel, onBack: () -> Unit) {
     val app = remember(index, packageName) { index?.apps?.firstOrNull { it.packageName == packageName } }
     var permissionDialog by remember { mutableStateOf(false) }
     if (permissionDialog) InstallPermissionDialog { permissionDialog = false }
+    val downgrade by vm.downgradePrompt.collectAsState()
+    val dialogContext = LocalContext.current
+    downgrade?.let { d ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = vm::dismissDowngrade,
+            title = { Text(stringResource(R.string.downgrade_title)) },
+            text = { Text(stringResource(R.string.downgrade_body, d.app.name, d.version.versionName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.confirmDowngrade()?.let { pkg ->
+                        runCatching { dialogContext.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$pkg"))) }
+                    }
+                }) { Text(stringResource(R.string.downgrade_confirm)) }
+            },
+            dismissButton = { TextButton(onClick = vm::dismissDowngrade) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -87,6 +105,14 @@ fun DetailScreen(packageName: String, vm: StoreViewModel, onBack: () -> Unit) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
                 },
                 actions = {
+                    val context = LocalContext.current
+                    if (app != null) {
+                        val shareText = stringResource(R.string.share_text, app.name, "openandroid://app/${app.packageName}" + app.repo.takeIf { it.isNotEmpty() }?.let { "\n$it" }.orEmpty())
+                        IconButton(onClick = {
+                            val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, shareText)
+                            runCatching { context.startActivity(Intent.createChooser(send, null)) }
+                        }) { Icon(Icons.Rounded.Share, stringResource(R.string.action_share)) }
+                    }
                     val favorite = packageName in favorites
                     IconButton(onClick = { vm.toggleFavorite(packageName) }) {
                         Icon(
@@ -202,7 +228,8 @@ fun DetailScreen(packageName: String, vm: StoreViewModel, onBack: () -> Unit) {
                     InfoRow(stringResource(R.string.info_package), app.packageName)
                 }
                 InfoCard(stringResource(R.string.permissions)) { Permissions(latest) }
-                if (app.versions.size > 1) VersionsCard(app)
+                if (app.versions.size > 1) VersionsCard(app, vm, installed[app.packageName]?.versionCode)
+                app.source?.let { Text(stringResource(R.string.source_from, it), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp)) }
             }
 
             val uriHandler = LocalUriHandler.current
@@ -303,22 +330,32 @@ private fun Permissions(version: AppVersion) {
 }
 
 @Composable
-private fun VersionsCard(app: StoreApp) {
+private fun VersionsCard(app: StoreApp, vm: StoreViewModel, installedCode: Long?) {
     var showAll by remember { mutableStateOf(false) }
-    val older = app.versions.drop(1)
+    val versions = app.versions
     InfoCard(stringResource(R.string.previous_versions)) {
-        older.take(if (showAll) older.size else 3).forEach { v ->
-            Column(Modifier.padding(vertical = 6.dp)) {
-                Text(
-                    "${v.versionName} • ${v.publishedAt.take(10)}".trimEnd(' ', '•'),
-                    style = MaterialTheme.typography.titleSmall,
-                )
-                if (v.changelog.isNotBlank()) {
-                    Text(v.changelog.trim(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 6)
+        versions.take(if (showAll) versions.size else 4).forEach { v ->
+            Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "${v.versionName} • ${v.publishedAt.take(10)}".trimEnd(' ', '•'),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    if (v.changelog.isNotBlank()) {
+                        Text(v.changelog.trim(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 4)
+                    }
+                }
+                when {
+                    installedCode == v.versionCode ->
+                        Text(stringResource(R.string.version_current), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    v.minSdk > Build.VERSION.SDK_INT -> Unit
+                    else -> TextButton(onClick = { vm.installVersion(app, v) }) {
+                        Text(stringResource(if (installedCode != null && v.versionCode < installedCode) R.string.version_rollback else R.string.version_install))
+                    }
                 }
             }
         }
-        if (older.size > 3) {
+        if (versions.size > 4) {
             TextButton(onClick = { showAll = !showAll }) {
                 Text(stringResource(if (showAll) R.string.show_less else R.string.show_all))
             }
